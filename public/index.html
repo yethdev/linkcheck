@@ -1,0 +1,760 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>linkcheck</title>
+<meta name="description" content="Look up how a URL is categorized across different databases.">
+<meta name="author" content="yeth.dev">
+<meta name="keywords" content="link checker, URL lookup, website checker">
+<meta name="category" content="Technology">
+<meta name="theme-color" content="#0a0a0f">
+<meta property="og:type" content="website">
+<meta property="og:title" content="linkcheck">
+<meta property="og:description" content="Look up how a URL is categorized across different databases.">
+<meta property="og:site_name" content="linkcheck">
+<style>
+body {
+  margin: 0;
+  background: #0a0a0f;
+  color: #71717a;
+  font-family: -apple-system, system-ui, sans-serif;
+  font-size: 14px;
+}
+#app {
+  max-width: 580px;
+  margin: 0;
+  padding: 0;
+}
+header {
+  display: flex;
+  align-items: center;
+  margin-bottom: 24px;
+}
+header h1 {
+  font-size: 14px;
+  font-weight: 600;
+  color: #e4e4e7;
+  margin: 0 8px 0 0;
+}
+#status {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #52525b;
+}
+#status.connected { background: #22c55e; }
+#status.busy { background: #f97316; }
+#status.error { background: #ef4444; }
+#status.connecting {
+  background: #f97316;
+  animation: pulse 1.2s infinite;
+}
+@keyframes pulse { 50% { opacity: .3; } }
+
+#search {
+  display: flex;
+  margin-bottom: 24px;
+}
+#search input {
+  flex: 1;
+  padding: 8px 10px;
+  font: inherit;
+  background: #16161f;
+  border: 1px solid #1e1e2e;
+  border-right: 0;
+  border-radius: 5px 0 0 5px;
+  color: #e4e4e7;
+  outline: none;
+}
+#search input:focus { border-color: #fc4f15; }
+#search input::placeholder { color: #52525b; }
+#search button {
+  padding: 8px 16px;
+  font: inherit;
+  font-weight: 600;
+  background: #fc4f15;
+  color: #fff;
+  border: none;
+  border-radius: 0 5px 5px 0;
+  cursor: pointer;
+}
+#search button:disabled { opacity: .25; cursor: default; }
+#search button:hover:not(:disabled) { background: #fd8b35; }
+
+#output { display: none; }
+#output.visible { display: block; }
+
+#target {
+  font-family: "SF Mono", Menlo, monospace;
+  font-size: 12px;
+  color: #52525b;
+  margin-bottom: 10px;
+}
+#stats {
+  font-size: 12px;
+  color: #71717a;
+  margin-bottom: 12px;
+}
+#stats b { font-weight: 600; }
+#stats .ok { color: #22c55e; }
+#stats .bad { color: #ef4444; }
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+}
+table td {
+  padding: 6px 0;
+  border-bottom: 1px solid #1e1e2e;
+  vertical-align: middle;
+}
+table tr:last-child td { border: 0; }
+td.platform {
+  width: 130px;
+  font-size: 13px;
+  color: #e4e4e7;
+}
+td.category {
+  font-size: 11px;
+  color: #52525b;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  max-width: 0;
+}
+td.result { width: 80px; text-align: right; }
+td.result span {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .02em;
+  padding: 1px 6px;
+  border-radius: 3px;
+}
+td.result .unblocked { color: #22c55e; background: rgba(34,197,94,.1); }
+td.result .blocked { color: #ef4444; background: rgba(239,68,68,.07); }
+td.result .error { color: #eab308; background: rgba(234,179,8,.07); }
+td.result .timeout { color: #71717a; background: rgba(113,113,122,.07); }
+td.result .pending {
+  color: #52525b;
+  position: relative;
+  padding-left: 18px;
+}
+td.result .pending::before {
+  content: "";
+  position: absolute;
+  left: 2px;
+  top: 50%;
+  margin-top: -4px;
+  width: 8px;
+  height: 8px;
+  border: 1.5px solid #1e1e2e;
+  border-top-color: #fc4f15;
+  border-radius: 50%;
+  animation: spin .55s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+@keyframes rowReveal { from { opacity: 0; transform: translateX(-6px); } to { opacity: 1; transform: none; } }
+tr.revealed td { animation: rowReveal .18s ease-out; }
+td.time {
+  width: 48px;
+  text-align: right;
+  font-family: "SF Mono", Menlo, monospace;
+  font-size: 10px;
+  color: #52525b;
+}
+
+#warn {
+  display: none;
+  font-size: 11px;
+  color: #eab308;
+  margin-top: 10px;
+  padding: 6px 8px;
+  background: rgba(234,179,8,.05);
+  border-radius: 3px;
+}
+#warn.visible { display: block; }
+
+#err {
+  display: none;
+  color: #ef4444;
+  font-size: 13px;
+  margin-top: 8px;
+}
+#err.visible { display: block; }
+
+#history { display: none; margin-top: 24px; }
+#history.visible { display: block; }
+#history h2 {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  color: #52525b;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+#history a {
+  display: block;
+  font-family: "SF Mono", Menlo, monospace;
+  font-size: 11px;
+  color: #71717a;
+  padding: 2px 0;
+  text-decoration: none;
+  cursor: pointer;
+  background: none;
+  border: none;
+  text-align: left;
+}
+#history a:hover { color: #fc4f15; }
+
+#queue-status {
+  display: none;
+  font-size: 12px;
+  color: #f97316;
+  margin-bottom: 12px;
+  padding: 8px 10px;
+  background: rgba(249,115,22,.06);
+  border: 1px solid rgba(249,115,22,.12);
+  border-radius: 4px;
+  text-align: center;
+  animation: qpulse 1.8s ease-in-out infinite;
+}
+#queue-status.visible { display: block; }
+@keyframes qpulse { 0%,100% { opacity: 1; } 50% { opacity: .6; } }
+
+/* --- Page layout: 3-column on desktop, stacked on mobile --- */
+#page {
+  display: grid;
+  grid-template-columns: 1fr minmax(0, 580px) 1fr;
+  gap: 0 40px;
+  max-width: 1200px;
+  margin: 50px auto;
+  padding: 0 24px;
+  align-items: start;
+}
+#app {
+  max-width: none;
+  margin: 0;
+  padding: 0;
+  grid-column: 2;
+  grid-row: 1;
+}
+.side-note {
+  font-size: 13px;
+  line-height: 1.6;
+  color: #71717a;
+  grid-row: 1;
+  padding-top: 42px;
+}
+.side-note.left  { grid-column: 1; text-align: right; }
+.side-note.right { grid-column: 3; text-align: left;  }
+
+/* --- Mobile fixes --- */
+@media (max-width: 900px) {
+  #page {
+    display: flex;
+    flex-direction: column;
+    max-width: 580px;
+    margin: 24px auto;
+    padding: 0 12px;
+    gap: 0;
+  }
+  #app { order: 1; }
+  .side-note { padding-top: 0; text-align: left !important; }
+  .side-note.left  { order: 2; margin-top: 28px; }
+  .side-note.right { order: 3; margin-top: 12px; }
+  #search input { font-size: 16px; padding: 10px 10px; }
+  #search button { font-size: 16px; padding: 10px 14px; }
+  td.platform { width: auto; font-size: 12px; }
+  td.category { display: none; }
+  td.result span { font-size: 9px; }
+  td.time { font-size: 9px; width: 40px; }
+  table td { padding: 5px 0; }
+}
+</style>
+</head>
+<body>
+<div id="page">
+
+<div class="side-note left">
+  Queries 15 classification engines in parallel and returns results via SSE for real-time display.
+</div>
+
+<main id="app">
+  <header>
+    <h1>linkcheck</h1>
+    <div id="status" class="connecting"></div>
+  </header>
+
+  <form id="search">
+    <input id="q" placeholder="url" autocomplete="off" spellcheck="false" aria-label="URL to check">
+    <button id="btn" type="button" disabled>check</button>
+  </form>
+
+  <div id="queue-status"></div>
+
+  <section id="output">
+    <div id="target"></div>
+    <div id="stats"></div>
+    <table><tbody id="tbody"></tbody></table>
+    <div id="warn"></div>
+  </section>
+
+  <div id="err"></div>
+
+  <section id="history">
+    <h2>recent</h2>
+    <div id="hlist"></div>
+  </section>
+</main>
+
+<div class="side-note right">
+  Built for school and district IT teams comparing web filters.
+  <div id="batch-panel" style="margin-top:18px;padding:10px;border:1px solid #1e1e2e;border-radius:5px;font-size:11px;">
+    <div style="color:#e4e4e7;font-weight:600;margin-bottom:6px;">extremely fast batch</div>
+    <textarea id="batch-input" rows="4" placeholder="Enter up to 20 URLs, one per line or comma-separated" style="width:100%;box-sizing:border-box;padding:6px;font:11px/1.4 'SF Mono',Menlo,monospace;background:#16161f;border:1px solid #1e1e2e;border-radius:3px;color:#e4e4e7;resize:vertical;outline:none;"></textarea>
+    <button id="batch-btn" style="margin-top:6px;padding:5px 10px;font-size:11px;font-weight:600;background:#fc4f15;color:#fff;border:none;border-radius:3px;cursor:pointer;width:100%;">check all</button>
+    <div id="batch-progress" style="margin-top:6px;display:none;">
+      <div style="background:#1e1e2e;border-radius:3px;height:6px;overflow:hidden;">
+        <div id="batch-bar" style="background:#fc4f15;height:100%;width:0%;transition:width .3s;"></div>
+      </div>
+      <div id="batch-prog-text" style="margin-top:3px;font-size:10px;color:#52525b;"></div>
+    </div>
+    <div id="batch-status" style="margin-top:6px;font-size:10px;color:#52525b;display:none;"></div>
+    <div id="batch-results" style="margin-top:8px;display:none;"></div>
+  </div>
+</div>
+
+</div><!-- /page -->
+
+<script>
+const platforms = [
+  "ContentKeeper","Lightspeed","Securly","AristotleK12","Senso Cloud",
+  "Linewize","Cisco Umbrella","iBoss","Palo Alto","LanSchool",
+  "Blocksi Web","FortiGuard","GoGuardian","Blocksi AI","Deledao"
+];
+
+let ready = false;
+let scanning = false;
+const history = [];
+
+function checkReady() {
+  fetch("/api/status").then(function(r) { return r.json(); }).then(function(d) {
+    ready = d.ready;
+    document.getElementById("status").className = d.busy ? "busy" : "connected";
+    document.getElementById("btn").disabled = scanning;
+    setTimeout(checkReady, 5000);
+  }).catch(function() {
+    ready = false;
+    document.getElementById("status").className = "error";
+    document.getElementById("btn").disabled = true;
+    setTimeout(checkReady, 3000);
+  });
+}
+checkReady();
+
+document.getElementById("search").addEventListener("submit", function(e) {
+  e.preventDefault();
+  run();
+});
+document.getElementById("btn").addEventListener("click", run);
+
+function run() {
+  var url = document.getElementById("q").value.trim();
+  if (!url || !ready || scanning) return;
+  url = url.replace(/^https?:\/\//i, "").replace(/\/$/, "");
+  scanning = true;
+  document.getElementById("btn").disabled = true;
+  document.getElementById("btn").textContent = "checking";
+
+  document.getElementById("err").className = "";
+  document.getElementById("warn").className = "";
+  document.getElementById("queue-status").className = "";
+  document.getElementById("output").className = "";
+  document.getElementById("target").textContent = "";
+  document.getElementById("stats").innerHTML = "";
+  document.getElementById("tbody").innerHTML = "";
+
+  document.getElementById("output").className = "visible";
+  document.getElementById("target").textContent = url;
+
+  const tbody = document.getElementById("tbody");
+
+  for (let i = 0; i < platforms.length; i++) {
+    const tr = document.createElement("tr");
+    tr.id = "row-" + i;
+    tr.innerHTML = '<td class="platform">' + platforms[i] + "</td>"
+      + '<td class="category">-</td>'
+      + '<td class="result"><span class="pending">&nbsp;</span></td>'
+      + '<td class="time"></td>';
+    tbody.appendChild(tr);
+  }
+
+  let allowed = 0, denied = 0, done = 0;
+  const collected = [];
+  let finished = false;
+
+  const src = new EventSource("/api/check-stream?url=" + encodeURIComponent(url) + "&_t=" + Date.now());
+
+  const cutoff = setTimeout(function() {
+    if (finished) return;
+    src.close();
+    finished = true;
+    // fail any rows still pending
+    for (let i = 0; i < platforms.length; i++) {
+      const tr = document.getElementById("row-" + i);
+      if (!tr) continue;
+      const badge = tr.querySelector(".pending");
+      if (badge) {
+        badge.className = "error";
+        badge.textContent = "timeout";
+        done++;
+      }
+    }
+    updateStats(allowed, denied, done);
+    scanning = false;
+    document.getElementById("btn").disabled = false;
+    document.getElementById("btn").textContent = "check";
+    history.unshift({ url: url, p: allowed, b: denied, n: done, platforms: collected });
+    if (history.length > 8) history.length = 8;
+    renderHistory();
+  }, 15000);
+
+  const pendingPlatforms = [];
+  let draining = false;
+  const STAGGER_MS = 30;
+
+  function drainQueue() {
+    if (draining) return;
+    draining = true;
+    (function next() {
+      if (pendingPlatforms.length === 0) { draining = false; return; }
+      const p = pendingPlatforms.shift();
+      document.getElementById("queue-status").className = "";
+      const matched = platforms.indexOf(p.name) !== -1;
+      updateRow(p);
+      collected.push(p);
+      if (matched) {
+        if (p.status === "unblocked") allowed++;
+        if (p.status === "blocked") denied++;
+        done++;
+        updateStats(allowed, denied, done);
+      }
+      if (pendingPlatforms.length > 0) {
+        setTimeout(next, STAGGER_MS);
+      } else {
+        draining = false;
+      }
+    })();
+  }
+
+  src.addEventListener("platform", function(ev) {
+    const p = JSON.parse(ev.data);
+    pendingPlatforms.push(p);
+    drainQueue();
+  });
+
+  src.addEventListener("note", function(ev) {
+    const d = JSON.parse(ev.data);
+    const el = document.getElementById("warn");
+    el.textContent = d.note;
+    el.className = "visible";
+  });
+
+  src.addEventListener("done", function(ev) {
+    if (finished) return;
+    finished = true;
+    clearTimeout(cutoff);
+    src.close();
+
+    function finalize() {
+      for (let i = 0; i < platforms.length; i++) {
+        const tr = document.getElementById("row-" + i);
+        if (!tr) continue;
+        const badge = tr.querySelector(".pending");
+        if (badge) {
+          badge.className = "error";
+          badge.textContent = "timeout";
+          done++;
+        }
+      }
+      updateStats(allowed, denied, done);
+      scanning = false;
+      document.getElementById("btn").disabled = false;
+      document.getElementById("btn").textContent = "check";
+      history.unshift({ url: url, p: allowed, b: denied, n: done, platforms: collected });
+      if (history.length > 8) history.length = 8;
+      renderHistory();
+    }
+
+    (function waitForStagger() {
+      if (pendingPlatforms.length > 0 || draining) {
+        setTimeout(waitForStagger, 30);
+      } else {
+        finalize();
+      }
+    })();
+  });
+
+  src.addEventListener("error", function() {
+    if (finished) return;
+    finished = true;
+    clearTimeout(cutoff);
+    src.close();
+    scanning = false;
+    document.getElementById("btn").disabled = false;
+    document.getElementById("btn").textContent = "check";
+    if (done === 0) {
+      document.getElementById("output").className = "";
+      fetch("/api/check-stream?url=_ratecheck_").then(function(r) {
+        if (r.status === 429) {
+          return r.json().then(function(d) {
+            const el = document.getElementById("err");
+            el.textContent = "slow down - try again in " + (d.retryAfter || 30) + "s";
+            el.className = "visible";
+          });
+        } else {
+          const el = document.getElementById("err");
+          el.textContent = "something went wrong";
+          el.className = "visible";
+        }
+      }).catch(function() {
+        const el = document.getElementById("err");
+        el.textContent = "something went wrong";
+        el.className = "visible";
+      });
+    }
+  });
+}
+
+function updateRow(p) {
+  const idx = platforms.indexOf(p.name);
+  if (idx === -1) return;
+  const tr = document.getElementById("row-" + idx);
+  if (!tr) return;
+  const cells = tr.children;
+  cells[1].textContent = p.category || "-";
+  const cls = p.status === "unblocked" ? "unblocked"
+    : p.status === "blocked" ? "blocked"
+    : p.status === "error" ? "error" : "";
+  var label = p.status === "unblocked" ? "accessible"
+    : p.status === "blocked" ? "restricted"
+    : p.status === "error" ? "err" : p.status;
+  cells[2].innerHTML = '<span class="' + cls + '">' + label + "</span>";
+  cells[3].textContent = p.ms ? p.ms + "ms" : "";
+  tr.classList.add("revealed");
+}
+
+function updateStats(p, b, d) {
+  document.getElementById("stats").innerHTML =
+    '<b class="ok">' + p + "</b> allowed · " +
+    '<b class="bad">' + b + "</b> denied · " + d + " of " + platforms.length;
+}
+
+function renderHistory() {
+  const wrap = document.getElementById("history");
+  const list = document.getElementById("hlist");
+  if (!history.length) return;
+  wrap.className = "visible";
+  list.innerHTML = "";
+  for (let i = 0; i < history.length; i++) {
+    (function(entry) {
+      const a = document.createElement("a");
+      a.role = "button";
+      a.tabIndex = 0;
+      a.textContent = entry.url + "  " + entry.p + "/" + entry.n;
+      a.onclick = function(e) {
+        document.getElementById("q").value = entry.url;
+        showCached(entry);
+      };
+      list.appendChild(a);
+    })(history[i]);
+  }
+}
+
+function showCached(entry) {
+  document.getElementById("output").className = "visible";
+  document.getElementById("target").textContent = entry.url;
+  const tbody = document.getElementById("tbody");
+  tbody.innerHTML = "";
+  let passed = 0, blocked = 0;
+  const byName = {};
+  for (let i = 0; i < entry.platforms.length; i++) byName[entry.platforms[i].name] = entry.platforms[i];
+  for (let i = 0; i < platforms.length; i++) {
+    const p = byName[platforms[i]];
+    if (!p) continue;
+    const cls = p.status === "unblocked" ? "unblocked"
+      : p.status === "blocked" ? "blocked"
+      : p.status === "error" ? "error" : "";
+    var label = p.status === "unblocked" ? "accessible"
+      : p.status === "blocked" ? "restricted"
+      : p.status === "error" ? "err" : p.status;
+    const tr = document.createElement("tr");
+    const tdName = document.createElement("td");
+    tdName.className = "platform";
+    tdName.textContent = p.name;
+    const tdCat = document.createElement("td");
+    tdCat.className = "category";
+    tdCat.textContent = p.category || "-";
+    const tdRes = document.createElement("td");
+    tdRes.className = "result";
+    const badge = document.createElement("span");
+    badge.className = cls;
+    badge.textContent = label;
+    tdRes.appendChild(badge);
+    const tdTime = document.createElement("td");
+    tdTime.className = "time";
+    tdTime.textContent = p.ms ? p.ms + "ms" : "";
+    tr.appendChild(tdName);
+    tr.appendChild(tdCat);
+    tr.appendChild(tdRes);
+    tr.appendChild(tdTime);
+    tbody.appendChild(tr);
+    if (p.status === "unblocked") passed++;
+    if (p.status === "blocked") blocked++;
+  }
+  updateStats(passed, blocked, entry.platforms.length);
+}
+
+document.getElementById("batch-btn").addEventListener("click", function() {
+  var raw = document.getElementById("batch-input").value.trim();
+  if (!raw) return;
+
+  var urls = raw.split(/[\n,]+/).map(function(s) { return s.trim(); }).filter(Boolean);
+  if (urls.length === 0) return;
+  if (urls.length > 20) {
+    document.getElementById("batch-status").textContent = "Max 20 URLs at a time";
+    document.getElementById("batch-status").style.color = "#ef4444";
+    document.getElementById("batch-status").style.display = "block";
+    return;
+  }
+
+  var btn = document.getElementById("batch-btn");
+  btn.disabled = true;
+  btn.style.opacity = ".4";
+  btn.textContent = "checking...";
+  document.getElementById("batch-status").style.display = "none";
+  document.getElementById("batch-results").style.display = "none";
+  document.getElementById("batch-results").innerHTML = "";
+  document.getElementById("batch-progress").style.display = "block";
+  document.getElementById("batch-bar").style.width = "0%";
+  document.getElementById("batch-prog-text").textContent = "0 / " + urls.length;
+
+  var encoded = encodeURIComponent(JSON.stringify(urls));
+  var src = new EventSource("/api/batch?urls=" + encoded);
+
+  src.addEventListener("start", function(ev) {
+    var d = JSON.parse(ev.data);
+    document.getElementById("batch-prog-text").textContent = "0 / " + d.total;
+  });
+
+  src.addEventListener("progress", function(ev) {
+    var d = JSON.parse(ev.data);
+    var pct = (d.completed / d.total * 100).toFixed(1);
+    document.getElementById("batch-bar").style.width = pct + "%";
+    document.getElementById("batch-prog-text").textContent = d.completed + " / " + d.total + " - " + d.result.url;
+    appendBatchRow(d.result, d.index);
+  });
+
+  src.addEventListener("done", function(ev) {
+    src.close();
+    var data = JSON.parse(ev.data);
+    document.getElementById("batch-bar").style.width = "100%";
+    document.getElementById("batch-prog-text").textContent = "Done";
+    document.getElementById("batch-status").textContent = data.count + " URLs checked";
+    document.getElementById("batch-status").style.color = "#22c55e";
+    document.getElementById("batch-status").style.display = "block";
+    btn.disabled = false;
+    btn.style.opacity = "1";
+    btn.textContent = "check all";
+  });
+
+  src.addEventListener("error", function() {
+    src.close();
+    document.getElementById("batch-prog-text").textContent = "Connection lost";
+    document.getElementById("batch-status").textContent = "Batch failed or disconnected";
+    document.getElementById("batch-status").style.color = "#ef4444";
+    document.getElementById("batch-status").style.display = "block";
+    btn.disabled = false;
+    btn.style.opacity = "1";
+    btn.textContent = "check all";
+  });
+});
+
+function appendBatchRow(entry, index) {
+  var wrap = document.getElementById("batch-results");
+  wrap.style.display = "block";
+
+  var row = document.createElement("div");
+  row.setAttribute("data-batch-url", entry.url);
+  row.setAttribute("data-batch-idx", index);
+  row.style.cssText = "padding:6px 0;border-bottom:1px solid #1e1e2e;";
+
+  var urlLine = document.createElement("div");
+  urlLine.style.cssText = "font:11px/1.3 'SF Mono',Menlo,monospace;color:#e4e4e7;word-break:break-all;";
+  urlLine.textContent = entry.url;
+
+  var countsLine = document.createElement("div");
+  countsLine.style.cssText = "font-size:10px;margin-top:2px;";
+  var okSpan = document.createElement("span");
+  okSpan.style.color = "#22c55e";
+  okSpan.textContent = entry.unblocked + " accessible";
+  var badSpan = document.createElement("span");
+  badSpan.style.color = "#ef4444";
+  badSpan.textContent = entry.blocked + " restricted";
+  countsLine.appendChild(okSpan);
+  countsLine.appendChild(document.createTextNode("  "));
+  countsLine.appendChild(badSpan);
+
+  var detailWrap = document.createElement("div");
+  detailWrap.style.cssText = "margin-top:3px;display:flex;flex-wrap:wrap;gap:2px 6px;";
+
+  var byName = {};
+  for (var j = 0; j < entry.platforms.length; j++) byName[entry.platforms[j].name] = entry.platforms[j];
+
+  for (var i = 0; i < platforms.length; i++) {
+    var p = byName[platforms[i]];
+    if (!p) continue;
+    var tag = document.createElement("span");
+    tag.style.cssText = "font-size:9px;padding:1px 4px;border-radius:2px;";
+    if (p.status === "blocked") {
+      tag.style.color = "#ef4444";
+      tag.style.background = "rgba(239,68,68,.07)";
+    } else if (p.status === "unblocked") {
+      tag.style.color = "#22c55e";
+      tag.style.background = "rgba(34,197,94,.07)";
+    } else {
+      tag.style.color = "#71717a";
+      tag.style.background = "rgba(113,113,122,.07)";
+    }
+    tag.textContent = p.name;
+    detailWrap.appendChild(tag);
+  }
+
+  row.appendChild(urlLine);
+  row.appendChild(countsLine);
+  row.appendChild(detailWrap);
+
+  var inserted = false;
+  var children = wrap.children;
+  for (var k = 0; k < children.length; k++) {
+    if (Number(children[k].getAttribute("data-batch-idx")) > index) {
+      wrap.insertBefore(row, children[k]);
+      inserted = true;
+      break;
+    }
+  }
+  if (!inserted) wrap.appendChild(row);
+}
+
+
+</script>
+
+<footer style="position:fixed;bottom:8px;left:12px;font-size:11px;color:#3f3f46;font-family:-apple-system,system-ui,sans-serif">
+  linkcheck by <a href="https://yeth.dev" target="_blank" rel="noopener" style="color:#52525b;text-decoration:none">yeth.dev</a>
+</footer>
+
+</body>
+</html>

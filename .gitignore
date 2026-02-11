@@ -1,0 +1,25 @@
+node_modules/
+.env
+playwright-report/
+test-results/
+screenshots/
+live.glseries.net/
+domainlist.json
+example server.js
+run-linkchecker.bat
+filters/aristotle.js
+filters/blocksi.js
+filters/cisco.js
+filters/contentkeeper.js
+filters/deledao.js
+filters/fortiguard.js
+filters/goguardian.js
+filters/iboss.js
+filters/lanschool.js
+filters/lightspeed.js
+filters/linewize.js
+filters/paloalto.js
+filters/securly.js
+filters/senso.js
+filters/json/
+.gitignore
