@@ -58,15 +58,11 @@ function sanitizeUrl(raw) {
   return cleaned;
 }
 
-const ALLOWED_ORIGINS = [
-  'http://localhost:3002',
-];
-
 function isAllowedOrigin(req) {
   const origin = req.get('origin') || '';
   const referer = req.get('referer') || '';
-  if (ALLOWED_ORIGINS.some(o => origin === o)) return true;
-  if (ALLOWED_ORIGINS.some(o => referer.startsWith(o + '/'))) return true;
+  if (/^https?:\/\/localhost(:\d+)?$/.test(origin)) return true;
+  if (/^https?:\/\/localhost(:\d+)?\//.test(referer)) return true;
   if (!origin && !referer) return false;
   return false;
 }

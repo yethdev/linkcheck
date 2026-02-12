@@ -42,4 +42,4 @@ node src/index.js web-legacy --port 3000
 
 Free to use, modify, and deploy. Credit to [yeth.dev](https://yeth.dev) is required. See [LICENSE](LICENSE).
 
-used to be hosted at https://check.yeth.dev/ but once contentkeeper patched it i chose to discontinue it.
+used to be hosted at https://check.yeth.dev/ but once contentkeeper patched it i chose to discontinue it. still occasionally update the repo tho
